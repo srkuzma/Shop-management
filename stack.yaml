@@ -1,0 +1,143 @@
+version: '3'
+
+services:
+  authenticationDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 10
+    volumes:
+      - dbdataAuth:/var/lib/mysql
+    networks:
+      - auth
+  authenticationDBMigration:
+    image: authenticationdbmigration
+    environment:
+      - DATABASE_URL=authenticationDB
+    build:
+      context: .
+      dockerfile: authenticationDBMigration.dockerfile
+    networks:
+      - auth
+  authentication:
+    image: authentication
+    environment:
+      - DATABASE_URL=authenticationDB
+    ports:
+      - 5000:5000
+    build:
+      context: .
+      dockerfile: authentication.dockerfile
+    networks:
+      - auth
+  prodavnicaDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 10
+    volumes:
+      - dbdataProdavnica:/var/lib/mysql
+    networks:
+      - customer
+      - daemon
+      - admin
+  prodavnicaDBMigration:
+    image: prodavnicadbmigration
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_URL=redis
+    build:
+      context: .
+      dockerfile: prodavnicaDBMigration.dockerfile
+    networks:
+      - daemon
+      - admin
+      - customer
+  customer:
+    image: customer
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_URL=redis
+    build:
+      context: .
+      dockerfile: customer.dockerfile
+    ports:
+      - 5001:5001
+    networks:
+      - customer
+    deploy:
+      replicas: 3
+  warehouse:
+    image: warehouse
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_URL=redis
+    ports:
+      - 5002:5002
+    build:
+      context: .
+      dockerfile: warehouse.dockerfile
+    networks:
+      - warehouse
+    deploy:
+      replicas: 3
+  admin:
+    image: admin
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_URL=redis
+    build:
+      context: .
+      dockerfile: admin.dockerfile
+    ports:
+      - 5003:5003
+    networks:
+      - admin
+  daemon:
+    image: daemon
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_URL=redis
+    build:
+      context: .
+      dockerfile: daemon.dockerfile
+    networks:
+      - daemon
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    networks:
+      - warehouse
+      - daemon
+  adminer:
+    image: adminer
+    ports:
+      - 8080:8080
+    networks:
+      - auth
+      - admin
+      - customer
+      - warehouse
+      - daemon
+volumes:
+  dbdataAuth:
+  dbdataProdavnica:
+
+networks:
+  auth:
+    driver: overlay
+  admin:
+    driver: overlay
+  customer:
+    driver: overlay
+  warehouse:
+    driver: overlay
+  daemon:
+    driver: overlay

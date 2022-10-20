@@ -1,0 +1,123 @@
+version: '3'
+
+services:
+  authenticationDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 10
+    volumes:
+    - dbdata2:/var/lib/mysql2
+    networks:
+      - mynet
+  authenticationDBMigration:
+    image: authenticationdbmigration
+    environment:
+      - DATABASE_URL=authenticationDB
+    depends_on:
+      authenticationDB:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: authenticationDBMigration.dockerfile
+    networks:
+      - mynet
+  authentication:
+    image: authentication
+    environment:
+      - DATABASE_URL=authenticationDB
+    depends_on:
+      - authenticationDBMigration
+    ports:
+    - 5000:5000
+    build:
+      context: .
+      dockerfile: authentication.dockerfile
+    networks:
+      - mynet
+  prodavnicaDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 10
+    volumes:
+    - dbdata2:/var/lib/mysql3
+    networks:
+      - mynet
+  prodavnicaDBMigration:
+    image: prodavnicadbmigration
+    environment:
+      - DATABASE_URL=prodavnicaDB
+    depends_on:
+      prodavnicaDB:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: prodavnicaDBMigration.dockerfile
+    networks:
+      - mynet
+  customer:
+    image: customer
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_URL=redis
+    depends_on:
+      - prodavnicaDBMigration
+    ports:
+    - 5001:5001
+    networks:
+      - mynet
+  warehouse:
+    image: warehouse
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_URL=redis
+    depends_on:
+      - prodavnicaDBMigration
+    ports:
+    - 5002:5002
+    networks:
+      - mynet
+  admin:
+    image: admin
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_URL=redis
+    depends_on:
+      - prodavnicaDBMigration
+    ports:
+    - 5003:5003
+    networks:
+      - mynet
+  daemon:
+    image: daemon
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_URL=redis
+    depends_on:
+      - prodavnicaDBMigration
+    networks:
+      - mynet
+  redis:
+    image: redis
+    ports:
+    - 6379:6379
+    networks:
+    - mynet
+  adminer:
+    image: adminer
+    ports:
+      - 8080:8080
+    networks:
+    - mynet
+volumes:
+  dbdata2:
+
+networks:
+  mynet:
